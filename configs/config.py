@@ -66,17 +66,22 @@ OCR_MIN_CONFIDENCE = 0.5
 OCR_MODEL_DIR = os.getenv("AGEFRIENDLY_MODEL_DIR", "")
 
 # --------------------------------------------------------------------------- #
-# DeepSeek 接口
+# 大模型接口（任何 OpenAI 兼容服务都能接）
 # --------------------------------------------------------------------------- #
-# deepseek-flash 支持图片输入（见 api-docs.deepseek.com/guides/vision）；
-# deepseek-chat 只支持文本，如果换成它，程序会自动退化成都只发事实卡。
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
-DEEPSEEK_TEMPERATURE = 0.0     # 判定类任务用 0，保证同一张图结果稳定
-DEEPSEEK_TIMEOUT = 90
-DEEPSEEK_MAX_RETRIES = 2
-DEEPSEEK_MAX_TOKENS = 1200
+# 默认用 DeepSeek 的 deepseek-flash（支持图片输入，见 api-docs.deepseek.com/guides/vision）。
+# 换成别家只要改 .env 里的三个值，代码不用动：
+#   火山方舟/豆包  VLM_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+#                  VLM_MODEL=你的接入点 ID，形如 ep-20250101-xxxxx
+#   阿里云百炼     VLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+#                  VLM_MODEL=qwen-vl-max
+# 变量优先读 VLM_*，没有时回退到旧的 DEEPSEEK_*，老配置继续能用。
+VLM_API_KEY = os.getenv("VLM_API_KEY") or os.getenv("DEEPSEEK_API_KEY", "")
+VLM_BASE_URL = os.getenv("VLM_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+VLM_MODEL = os.getenv("VLM_MODEL") or os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
+VLM_TEMPERATURE = 0.0     # 判定类任务用 0，保证同一张图结果稳定
+VLM_TIMEOUT = 90
+VLM_MAX_RETRIES = 2
+VLM_MAX_TOKENS = 1200
 
 # 是否把截图一起发给模型。
 # True：模型能"看见"颜色、图标、弹窗、遮挡，判断更准；
