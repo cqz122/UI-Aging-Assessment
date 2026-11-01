@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""DeepSeek 调用封装。
+"""大模型调用封装（任何 OpenAI 兼容服务）。
 
 支持的输入：
     - 纯文本（事实卡）
@@ -30,11 +30,11 @@ from typing import Any, Dict, Optional
 from configs import config
 
 
-class DeepSeekError(RuntimeError):
+class LLMError(RuntimeError):
     """调用失败时抛出，带可读原因。"""
 
 
-class DeepSeekClient:
+class LLMClient:
     """对 openai SDK 的薄封装。"""
 
     def __init__(
@@ -43,9 +43,9 @@ class DeepSeekClient:
         base_url: Optional[str] = None,
         model: Optional[str] = None,
     ):
-        self.api_key = api_key or config.DEEPSEEK_API_KEY
-        self.base_url = base_url or config.DEEPSEEK_BASE_URL
-        self.model = model or config.DEEPSEEK_MODEL
+        self.api_key = api_key or config.VLM_API_KEY
+        self.base_url = base_url or config.VLM_BASE_URL
+        self.model = model or config.VLM_MODEL
         self._client: Any = None
 
     # ------------------------------------------------------------------ #
@@ -57,19 +57,19 @@ class DeepSeekClient:
         if self._client is not None:
             return self._client
         if not self.api_key:
-            raise DeepSeekError(
-                "未配置 DEEPSEEK_API_KEY。请在项目根目录的 .env 里写入：\n"
-                "    DEEPSEEK_API_KEY=sk-你的Key"
+            raise LLMError(
+                "未配置大模型 API Key。请在项目根目录的 .env 里写入：\n"
+                "    VLM_API_KEY=你的Key"
             )
         try:
             from openai import OpenAI
         except ImportError as exc:  # pragma: no cover
-            raise DeepSeekError("未安装 openai，请执行：pip install -r requirements.txt") from exc
+            raise LLMError("未安装 openai，请执行：pip install -r requirements.txt") from exc
 
         self._client = OpenAI(
             api_key=self.api_key,
             base_url=self.base_url,
-            timeout=config.DEEPSEEK_TIMEOUT,
+            timeout=config.VLM_TIMEOUT,
             max_retries=0,  # 重试逻辑自己控制，方便打印
         )
         return self._client
@@ -95,8 +95,8 @@ class DeepSeekClient:
                 try:
                     return self._chat_once(system, user, None, temperature, with_image=False)
                 except Exception:  # noqa: BLE001
-                    raise DeepSeekError(f"调用 DeepSeek 失败：{exc}") from exc
-            raise DeepSeekError(f"调用 DeepSeek 失败：{exc}") from exc
+                    raise LLMError(f"调用大模型失败：{exc}") from exc
+            raise LLMError(f"调用大模型失败：{exc}") from exc
 
     def _chat_once(
         self,
@@ -128,20 +128,20 @@ class DeepSeekClient:
                 {"role": "system", "content": system},
                 {"role": "user", "content": content},
             ],
-            "temperature": config.DEEPSEEK_TEMPERATURE if temperature is None else temperature,
-            "max_tokens": config.DEEPSEEK_MAX_TOKENS,
+            "temperature": config.VLM_TEMPERATURE if temperature is None else temperature,
+            "max_tokens": config.VLM_MAX_TOKENS,
         }
 
         last_error: Optional[Exception] = None
-        for attempt in range(config.DEEPSEEK_MAX_RETRIES + 1):
+        for attempt in range(config.VLM_MAX_RETRIES + 1):
             try:
                 response = client.chat.completions.create(**kwargs)
                 return response.choices[0].message.content or ""
             except Exception as exc:  # noqa: BLE001 - 网络抖动、限流都重试
                 last_error = exc
-                if attempt < config.DEEPSEEK_MAX_RETRIES:
+                if attempt < config.VLM_MAX_RETRIES:
                     time.sleep(1.5 * (attempt + 1))
-        raise DeepSeekError(f"调用 DeepSeek 失败：{last_error}")
+        raise LLMError(f"调用大模型失败：{last_error}")
 
     # ------------------------------------------------------------------ #
     def chat_json(
@@ -171,7 +171,7 @@ class DeepSeekClient:
 def to_data_url(image_path: str) -> str:
     """把本地图片编码成 data URL。
 
-    DeepSeek 按文件内容判断格式，不看扩展名，所以这里统一声明 image/png 也不影响。
+    大模型按文件内容判断图片格式，不看扩展名，所以这里统一声明 image/png 也不影响。
     """
     with open(image_path, "rb") as f:
         encoded = base64.b64encode(f.read()).decode("ascii")
