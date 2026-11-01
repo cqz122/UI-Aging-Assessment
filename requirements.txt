@@ -1,0 +1,11 @@
+# 运行依赖
+# 建议 Python 3.10 / 3.11（PaddlePaddle 对更高版本支持还不完整）
+
+# --- 本地测量：OCR 与图像处理 ---
+paddlepaddle==2.6.2
+paddleocr==2.9.1
+numpy<2
+opencv-python-headless>=4.8
+
+# --- 大模型调用（DeepSeek 兼容 OpenAI 接口）---
+openai>=1.30
