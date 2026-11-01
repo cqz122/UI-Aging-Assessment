@@ -7,7 +7,7 @@
 
 条目支持三种判定方式：
     method="tool"   完全由程序测量，按 judge 里的阈值比对，不花 API 额度
-    method="llm"    把事实卡交给 DeepSeek，由模型判断
+    method="llm"    把事实卡和截图交给大模型，由模型判断
     method="hybrid" 先跑工具，把测量结果一起给模型，由模型结合语境下结论
 """
 
@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional
 
 from configs import config
 from core.context import PageContext
-from core.llm import DeepSeekClient, DeepSeekError
+from core.llm import LLMClient, LLMError
 
 # 系统提示词：所有条目共用，负责"把模型的角色和纪律定死"
 SYSTEM_PROMPT = """\
@@ -56,8 +56,8 @@ SYSTEM_PROMPT = """\
 class Agent:
     """检测调度器。"""
 
-    def __init__(self, llm: Optional[DeepSeekClient] = None, mock: bool = False, dpi: Optional[float] = None):
-        self.llm = llm or DeepSeekClient()
+    def __init__(self, llm: Optional[LLMClient] = None, mock: bool = False, dpi: Optional[float] = None):
+        self.llm = llm or LLMClient()
         self.mock = mock  # True 时不调用模型，用于离线调试
         self.dpi = dpi
 
@@ -154,12 +154,12 @@ class Agent:
 
     # ------------------------------------------------------------------ #
     def _judge_llm(self, item: Dict[str, Any], page: PageContext, extra: str = "") -> Dict[str, Any]:
-        """交给 DeepSeek 判断。"""
+        """交给大模型判断。"""
         if self.mock or not self.llm.available:
             return {
                 "status": "无法判断",
                 "evidence": [],
-                "reason": "未配置 DEEPSEEK_API_KEY（或使用了 --mock），本条需要模型判断，已跳过",
+                "reason": "未配置大模型 Key（或使用了 --mock），本条需要模型判断，已跳过",
                 "suggestion": "",
             }
 
