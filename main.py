@@ -65,8 +65,6 @@ def main(argv=None) -> int:
 
     only = [code for code in args.items.split(",") if code.strip()] or None
     agent = Agent(mock=args.mock, dpi=args.dpi)
-    if not args.mock and agent.llm.available:
-        print(f"接口：{agent.llm.model} @ {agent.llm.base_url}")
     result = agent.run(args.image, only=only)
 
     print(f"\n==> {result['image']}")
