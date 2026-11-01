@@ -15,7 +15,7 @@
 ├── core/                   # 调度核心，一般不用改
 │   ├── agent.py            # 逐条判定：跑工具 / 问模型 / 汇总
 │   ├── context.py          # 读图、跑 OCR、生成 page 对象
-│   ├── llm.py              # 调用 DeepSeek，取回 JSON
+│   ├── llm.py              # 调用大模型（OpenAI 兼容），取回 JSON
 │   └── report.py           # 生成反馈文档、导出条目清单
 ├── prompts/                # ★ 检测条目，一个文件一条
 │   ├── _模板.py            # 新建条目时复制这个（以 _ 开头不会被加载）
@@ -65,7 +65,7 @@ paddlepaddle==2.6.2        # OCR 推理框架
 paddleocr==2.9.1           # 文字识别
 numpy<2
 opencv-python-headless     # 图像处理
-openai>=1.30               # 调用 DeepSeek
+openai>=1.30               # 调用大模型
 ```
 
 ### 2.2 配置 Key
@@ -77,8 +77,20 @@ copy .env.example .env      # macOS/Linux: cp .env.example .env
 打开 `.env` 填入：
 
 ```ini
-DEEPSEEK_API_KEY=sk-你的Key
+VLM_API_KEY=你的Key
+VLM_BASE_URL=https://api.deepseek.com
+VLM_MODEL=deepseek-flash
 ```
+
+换别的厂商只改这三行，代码不用动，例如火山方舟（豆包）：
+
+```ini
+VLM_API_KEY=你的火山方舟Key
+VLM_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+VLM_MODEL=ep-20250101-xxxxx
+```
+
+`VLM_MODEL` 要填方舟控制台里"接入点"的 ID（`ep-` 开头），不是模型名。
 
 > `.env` 已加入 `.gitignore`，不会被提交。不要把 Key 写进代码。
 
@@ -383,7 +395,7 @@ python eval/recall.py
 ## 六、常见问题
 
 **Q：跑出来全是"无法判断"？**
-没有配 `DEEPSEEK_API_KEY`，或者用了 `--mock`。`--mock` 只跑程序测量的条目。
+没有配 `VLM_API_KEY`，或者用了 `--mock`。`--mock` 只跑程序测量的条目。
 
 **Q：提示词改了没效果？**
 先 `--print-facts` 看模型到底看到了什么。多数"判不准"是事实卡里没这个信息，而不是提示词写得不好。
