@@ -75,9 +75,20 @@ OCR_MODEL_DIR = os.getenv("AGEFRIENDLY_MODEL_DIR", "")
 #   阿里云百炼     VLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 #                  VLM_MODEL=qwen-vl-max
 # 变量优先读 VLM_*，没有时回退到旧的 DEEPSEEK_*，老配置继续能用。
+# 注意：同一时刻只会用一套接口，不存在"先调谁"的问题。
+# 两套都写时以 VLM_* 为准；只用一个厂商时，建议把另一套注释掉，避免看混。
 VLM_API_KEY = os.getenv("VLM_API_KEY") or os.getenv("DEEPSEEK_API_KEY", "")
 VLM_BASE_URL = os.getenv("VLM_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 VLM_MODEL = os.getenv("VLM_MODEL") or os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
+
+# 只写了 Key、没写对应的 BASE_URL / MODEL 时，容易出现"Key 是火山的、地址却还是 DeepSeek"，
+# 这里提前提示一句，免得跑到一半才报错。
+if os.getenv("VLM_API_KEY") and not (os.getenv("VLM_BASE_URL") and os.getenv("VLM_MODEL")):
+    print(
+        "[提示] 你设置了 VLM_API_KEY，但没写全 VLM_BASE_URL / VLM_MODEL，"
+        f"当前使用：{VLM_MODEL} @ {VLM_BASE_URL}"
+    )
+
 VLM_TEMPERATURE = 0.0     # 判定类任务用 0，保证同一张图结果稳定
 VLM_TIMEOUT = 90
 VLM_MAX_RETRIES = 2
