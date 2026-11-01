@@ -74,53 +74,15 @@ openai>=1.30               # 调用大模型
 copy .env.example .env      # macOS/Linux: cp .env.example .env
 ```
 
-**只配一家**，三行写全：`VLM_API_KEY`、`VLM_BASE_URL`、`VLM_MODEL`。
-
-#### 用 DeepSeek（默认）
-
-1. 打开 <https://platform.deepseek.com/api_keys>，创建一个 Key；
-2. `.env` 写：
+打开 `.env` 填入：
 
 ```ini
-VLM_API_KEY=sk-你的Key
+VLM_API_KEY=你的Key
 VLM_BASE_URL=https://api.deepseek.com
 VLM_MODEL=deepseek-flash
 ```
 
-#### 用火山方舟（豆包）
-
-1. 打开 <https://console.volcengine.com/ark>，开通「方舟」；
-2. 在 **模型广场** 开通一个视觉模型（如豆包视觉理解模型）；
-3. 进入 **在线推理 → 创建接入点**，选刚开通的模型，创建后复制 **接入点 ID**（`ep-` 开头）；
-4. 在 **API Key 管理** 里创建一个 Key；
-5. `.env` 写：
-
-```ini
-VLM_API_KEY=你的火山方舟 Key
-VLM_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
-VLM_MODEL=ep-20250101-xxxxx
-```
-
-> `VLM_MODEL` 填的是**接入点 ID**，不是模型名。填模型名会报 `model not found`。
-
-#### 两个都配了会先用谁？
-
-不会"先后调用"，程序**同一时刻只用一套接口**：
-
-```text
-写了 VLM_*      → 用 VLM_*
-没写 VLM_*      → 回退读旧的 DEEPSEEK_*（老配置兼容）
-```
-
-所以只用一个厂商时，**另一套留着不注释也不会出错**，但容易看混，建议注释掉。
-
-跑起来时终端会打印当前用的是哪家：
-
-```text
-接口：deepseek-flash @ https://api.deepseek.com
-```
-
-模型不支持图片时（比如接了个纯文本模型），程序会自动去掉截图、只发事实卡，不会崩。
+> 如果用的是火山方舟（豆包），把后两行换成 `VLM_BASE_URL=https://ark.cn-beijing.volces.com/api/v3`、`VLM_MODEL=接入点 ID`（`ep-` 开头）。
 
 > `.env` 已加入 `.gitignore`，不会被提交。不要把 Key 写进代码。
 
