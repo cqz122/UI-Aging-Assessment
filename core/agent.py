@@ -52,6 +52,12 @@ SYSTEM_PROMPT = """\
  "suggestion": "具体改法，判通过时可为空字符串"}
 """
 
+# suggestion 写 "auto" 时，用这个提示词让模型现写一句改法
+SUGGEST_SYSTEM = """\
+你是移动应用适老化改造顾问，服务对象是没有设计背景的学生团队。
+根据给出的条目、判定和证据，写一句可以直接执行的修改建议。
+要求：不超过 40 字，给出具体改法（例如"把浅灰提示文字改为 #666"），不要解释原因，不要加引号。"""
+
 
 class Agent:
     """检测调度器。"""
@@ -117,38 +123,84 @@ class Agent:
                 "method": method,
             }
         )
+        # suggestion 写 "auto" 时，判不通过就让模型现写一条建议
+        if outcome.get("status") == "不通过" and item.get("suggestion") == "auto":
+            outcome["suggestion"] = self._suggest(item, outcome)
         outcome["item_id"] = outcome["id"]
         return outcome
 
     # ------------------------------------------------------------------ #
-    def _judge_tool(self, item: Dict[str, Any], page: PageContext) -> Dict[str, Any]:
-        """纯程序判定：跑工具 → 取字段 → 比阈值。"""
-        rule = item.get("judge") or {}
-        metrics = page.tool(item["tool"])
-        field = rule.get("field", "")
-        value = metrics.get(field)
+    def _suggest(self, item: Dict[str, Any], outcome: Dict[str, Any]) -> str:
+        """让模型根据判定结果写一句修改建议（suggestion="auto" 时使用）。"""
+        if self.mock or not self.llm.available:
+            return ""
+        user = (
+            f"条目：{item.get('title')}\n"
+            f"判定：{outcome.get('reason')}\n"
+            f"证据：{'；'.join(outcome.get('evidence') or [])}\n"
+            "请给一句具体可执行的修改建议，不超过 40 字。"
+        )
+        try:
+            return clean_suggestion(self.llm.chat(SUGGEST_SYSTEM, user))
+        except Exception:  # noqa: BLE001 - 建议是加分项，失败不影响结论
+            return ""
 
-        if value is None or (isinstance(value, (int, float)) and value <= 0):
+    # ------------------------------------------------------------------ #
+    def _judge_tool(self, item: Dict[str, Any], page: PageContext) -> Dict[str, Any]:
+        """纯程序判定：跑工具 → 逐条取字段比阈值。
+
+        judge 可以写一个条件，也可以写多个（默认全部满足才通过）：
+            "judge": {"field": "low_count", "op": "==", "value": 0, ...}
+            "judge": [ {...}, {...} ]          多个条件，全部满足才通过
+            "judge": {"any": [ {...}, {...} ]} 多个条件，满足任意一个即通过
+        """
+        metrics = page.tool(item["tool"])
+        rules, mode = parse_judge(item.get("judge"))
+
+        evidence: List[str] = []
+        passed_flags: List[bool] = []
+        unknown: List[str] = []
+
+        for rule in rules:
+            field = rule.get("field", "")
+            value = metrics.get(field)
+            label = rule.get("label", field)
+            unit = rule.get("unit", "")
+            op = rule.get("op", ">=")
+            target = rule.get("value", 0)
+
+            if value is None or (isinstance(value, (int, float)) and value <= 0):
+                unknown.append(label)
+                continue
+
+            ok = compare(value, op, target)
+            passed_flags.append(ok)
+            evidence.append(f"{label} {value}{unit}（阈值 {op} {target}{unit}）")
+
+        if not passed_flags:
             return {
                 "status": "无法判断",
                 "evidence": [],
-                "reason": f"工具 {item['tool']} 未能测出 {field}（页面上可能没有可测量的文本）",
+                "reason": f"工具 {item['tool']} 未能测出所需数值（页面上可能没有可测量的文本）",
                 "suggestion": "",
             }
 
-        passed = compare(value, rule.get("op", ">="), rule.get("value", 0))
-        label = rule.get("label", field)
-        unit = rule.get("unit", "")
+        if mode == "any":
+            passed = any(passed_flags)
+            reason = "至少一个条件满足" if passed else "全部条件都未达到"
+        else:
+            passed = all(passed_flags)
+            reason = "条件全部满足" if passed else "有条件未达到"
 
-        evidence = [f"{label} {value}{unit}（阈值 {rule.get('op', '>=')} {rule.get('value')}{unit}）"]
-        extra = metrics.get("line_count")
-        if isinstance(extra, int) and extra:
-            evidence.append(f"共统计 {extra} 行文字")
+        # 顺手把统计行数补进证据，报告更好读
+        line_count = metrics.get("line_count")
+        if isinstance(line_count, int) and line_count:
+            evidence.append(f"共统计 {line_count} 行文字")
 
         return {
             "status": "通过" if passed else "不通过",
             "evidence": evidence,
-            "reason": f"{label} {value}{unit}，{'达到' if passed else '未达到'} {rule.get('value')}{unit}",
+            "reason": reason,
             "suggestion": "" if passed else item.get("suggestion", ""),
         }
 
@@ -256,6 +308,44 @@ def compare(value: float, op: str, target: float) -> bool:
     }.get(op, value >= target)
 
 
+def parse_judge(judge: Any) -> tuple:
+    """把 judge 统一成 (条件列表, 组合方式)。
+
+        {"field": ...}               -> 单条件
+        [{...}, {...}]               -> 多条件，全部满足才通过（all）
+        {"any": [{...}, {...}]}      -> 多条件，满足任意一个即通过（any）
+        {"all": [{...}, {...}]}      -> 同列表写法
+    """
+    if isinstance(judge, dict):
+        if isinstance(judge.get("any"), list):
+            return [r for r in judge["any"] if isinstance(r, dict)], "any"
+        if isinstance(judge.get("all"), list):
+            return [r for r in judge["all"] if isinstance(r, dict)], "all"
+        return [judge], "all"
+    if isinstance(judge, list):
+        return [r for r in judge if isinstance(r, dict)], "all"
+    return [], "all"
+
+
+def clean_suggestion(text: str) -> str:
+    """把模型返回的建议清理成一句话。
+
+    模型偶尔会不听话，返回一整个 JSON，这里兼容一下：能解析出 suggestion 就用它，
+    再剥掉多余的引号和换行，最后限长，避免报告被一段长文撑爆。
+    """
+    text = (text or "").strip()
+    if not text:
+        return ""
+    if text.startswith("{"):
+        try:
+            payload = json.loads(text[text.find("{"): text.rfind("}") + 1])
+            text = str(payload.get("suggestion") or payload.get("reason") or "").strip()
+        except Exception:  # noqa: BLE001
+            pass
+    text = text.strip().strip('"').strip("“”").replace("\n", " ").strip()
+    return text[:120]
+
+
 # --------------------------------------------------------------------------- #
 # 条目加载
 # --------------------------------------------------------------------------- #
@@ -314,7 +404,7 @@ def _validate(item: Dict[str, Any], path: Path) -> bool:
 
         tool_name = item.get("tool")
         if tool_name not in TOOLS:
-            print(f"[跳过] {path.name}：工具 “{tool_name}” 不存在，请先在 tools/__init__.py 登记")
+            print(f"[跳过] {path.name}：工具 “{tool_name}” 不存在，请检查 tools/ 下的文件名与 NAME 是否写对")
             return False
 
     if method in {"llm", "hybrid"} and not item.get("prompt", "").strip():
