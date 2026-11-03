@@ -34,12 +34,12 @@ from typing import Any, Dict, List
 # 这里给自己的包留一个别名，ocr.py 在导入 paddleocr 之后据此换回来。
 sys.modules.setdefault("__pkg_tools__", sys.modules[__name__])
 
-# 工具登记表：名字 -> 模块
+# 工具表：名字 -> 模块（启动时自动收集）
 TOOLS: Dict[str, Any] = {}
 
 
 def _discover() -> None:
-    """扫描本目录下所有 .py，把带有 NAME 和 run() 的模块登记成工具。"""
+    """扫描本目录下所有 .py，把带有 NAME 和 run() 的模块收集成工具。"""
     folder = Path(__file__).parent
     for path in sorted(folder.glob("*.py")):
         stem = path.stem
@@ -57,7 +57,7 @@ def get_tool(name: str):
     """按名字取工具模块，名字写错时给出可读提示。"""
     if name not in TOOLS:
         available = "、".join(sorted(TOOLS)) or "（空）"
-        raise KeyError(f"没有名为 “{name}” 的工具。已登记的工具：{available}")
+        raise KeyError(f"没有名为 “{name}” 的工具。可用的工具：{available}")
     return TOOLS[name]
 
 
