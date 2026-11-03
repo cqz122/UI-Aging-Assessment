@@ -27,12 +27,17 @@ from typing import Any, Dict, List
 NAME = "contrast"
 DESCRIPTION = "测量文字与背景的对比度（WCAG 2.1）"
 
-# run() 返回的字段：
-#   mean_ratio  float  平均对比度（按字符数加权）
-#   min_ratio   float  最低对比度
-#   low_count   int    低于阈值的文字行数
-#   line_count  int    参与统计的行数
-#   threshold   float  判定阈值（来自 configs/config.py）
+# run() 返回一个字典，每个字段都有明确用途：
+#   mean_ratio  平均对比度：一眼看整体水平，也会写进事实卡给模型参考
+#   min_ratio   最低对比度：指出"哪几行最看不清"，报告里当证据
+#   line_count  参与统计的行数：判断这次测量可不可信（为 0 说明页面上没文字）
+#   low_count   低于阈值的行数：判定用，直接对应"有几行不合格"
+#   threshold   本次使用的阈值：写进报告，别人复核时能对上口径
+#
+# 为什么要这么多字段，而不是只返回一个数字：
+#   判定要能落到"哪几行不合格"，光有平均值会把个别行的问题平均掉；
+#   有了 low_count 才能判 A03，有了 min_ratio 才能说清最差的那行差多少，
+#   有了 line_count 才能在页面上没文字时判"无法判断"，而不是误判通过。
 
 
 def run(page: Any) -> Dict[str, Any]:
