@@ -108,7 +108,7 @@ class PageContext:
         return sorted([l for l in self.lines if l.text.strip()], key=lambda l: (l.y1, l.x1))
 
     def _summary_lines(self) -> List[str]:
-        """把所有已登记工具的结果都列出来，新增工具会自动出现，不用改这里。"""
+        """把所有工具的结果都列出来，新增工具会自动出现，不用改这里。"""
         from tools import TOOLS
 
         out: List[str] = []
@@ -126,7 +126,7 @@ class PageContext:
             out.append(f"- {module.DESCRIPTION}：{detail}")
 
         if not out:
-            out.append("（没有登记任何测量工具）")
+            out.append("（没有找到任何测量工具）")
 
         truncated = [l.text for l in self._sorted_lines() if _looks_truncated(l.text)]
         out.append(
